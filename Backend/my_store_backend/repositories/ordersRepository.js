@@ -1,8 +1,25 @@
 import db from '../db.js';
 
 export const getAllOrders = async () => {
-  const [rows] = await db.query('SELECT * FROM orders');
-  return rows;
+  const [orders] = await db.query('SELECT * FROM orders');
+  
+  // Lấy order_details cho từng order
+  for (let order of orders) {
+    const [details] = await db.query(`
+      SELECT od.id as order_detail_id, od.quantity, od.price,
+             ps.id as product_size_id, s.size as size_name,
+             p.id as product_id, p.name as product_name, p.price as product_price, p.image
+      FROM order_details od
+      LEFT JOIN product_sizes ps ON od.product_sizes_id = ps.id
+      LEFT JOIN sizes s ON ps.size_id = s.id
+      LEFT JOIN product p ON ps.product_id = p.id
+      WHERE od.order_id = ?
+    `, [order.id]);
+    
+    order.order_details = details;
+  }
+  
+  return orders;
 };
 
 export const getOrderById = async (id) => {
@@ -11,7 +28,7 @@ export const getOrderById = async (id) => {
 
   const [details] = await db.query(`
     SELECT od.id as order_detail_id, od.quantity, od.price,
-           ps.id as product_size_id, s.size,
+           ps.id as product_size_id, s.size as size_name,
            p.id as product_id, p.name as product_name, p.price as product_price, p.image
     FROM order_details od
     LEFT JOIN product_sizes ps ON od.product_sizes_id = ps.id

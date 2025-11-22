@@ -1,11 +1,21 @@
 // src/view/Cart/OrderSuccess.jsx
 import React from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
+import Session from "../../Session/session";
 
 export default function OrderSuccess() {
   const location = useLocation();
   const navigate = useNavigate();
   const { orderId, orderData } = location.state || {};
+
+  const handleViewOrders = () => {
+    const userRole = Session.getRole();
+    if (userRole === "admin") {
+      navigate("/admin", { state: { activeTab: "orderManager" } });
+    } else {
+      navigate("/user", { state: { activeTab: "orders" } });
+    }
+  };
 
   if (!orderId) {
     return (
@@ -57,7 +67,7 @@ export default function OrderSuccess() {
             ← Tiếp tục mua sắm
           </Link>
           <button
-            onClick={() => navigate("/user")}
+            onClick={handleViewOrders}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium"
           >
             Xem đơn hàng của tôi

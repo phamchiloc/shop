@@ -1,5 +1,6 @@
 // src/view/User/OrderManager.js
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { getAllOrders, deleteOrder } from "../../api";
 import Session from "../../Session/session";
 
@@ -13,6 +14,7 @@ export default function OrderManager() {
   const [visibleCount, setVisibleCount] = useState(8);
 
   const user = Session.getUser();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchOrders();
@@ -76,6 +78,8 @@ export default function OrderManager() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed': return 'bg-blue-100 text-blue-800';
+      case 'shipping': return 'bg-purple-100 text-purple-800';
       case 'received': return 'bg-green-100 text-green-800';
       case 'cancelled': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
@@ -85,7 +89,9 @@ export default function OrderManager() {
   const getStatusText = (status) => {
     switch (status) {
       case 'pending': return 'Chờ xác nhận';
-      case 'received': return 'Đã nhận hàng';
+      case 'confirmed': return 'Đã xác nhận';
+      case 'shipping': return 'Đang giao hàng';
+      case 'received': return 'Đã giao thành công';
       case 'cancelled': return 'Đã hủy';
       default: return status;
     }
@@ -130,6 +136,15 @@ export default function OrderManager() {
       console.error('Error parsing payment_info:', error);
       return null;
     }
+  };
+
+  // Hàm xử lý đường dẫn hình ảnh
+  const resolveImage = (img) => {
+    if (!img) return '/images/placeholder.png';
+    const trimmed = String(img).trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('/')) return encodeURI(trimmed);
+    return `/images/${encodeURI(trimmed)}`;
   };
 
   // Kiểm tra xem user có thể hủy đơn hàng không
@@ -226,33 +241,22 @@ export default function OrderManager() {
 
                   {/* Nút hành động */}
                   <div className="px-3 py-2 bg-white border-t flex gap-2">
-                    {/* Nút xem chi tiết - chỉ hiển thị khi đã thanh toán */}
-                    {paymentStatus.canView && (
-                      <button
-                        onClick={() => handleShowDetail(order)}
-                        className="flex-1 bg-blue-600 text-white text-xs py-1 px-2 rounded hover:bg-blue-700 transition-colors"
-                      >
-                        Xem chi tiết
-                      </button>
-                    )}
+                    {/* Nút xem chi tiết - luôn hiển thị */}
+                    <button
+                      onClick={() => handleShowDetail(order)}
+                      className="flex-1 bg-blue-600 text-white text-xs py-1 px-2 rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Xem chi tiết
+                    </button>
                     
                     {/* Nút hủy đơn hàng - chỉ hiển thị khi pending */}
                     {canCancelOrder(order) && (
                       <button
                         onClick={() => handleDeleteOrder(order.id)}
-                        className={`bg-red-600 text-white text-xs py-1 px-2 rounded hover:bg-red-700 transition-colors ${
-                          paymentStatus.canView ? 'flex-1' : 'w-full'
-                        }`}
+                        className="flex-1 bg-red-600 text-white text-xs py-1 px-2 rounded hover:bg-red-700 transition-colors"
                       >
                         Hủy đơn
                       </button>
-                    )}
-
-                    {/* Thông báo khi không có hành động nào */}
-                    {!paymentStatus.canView && !canCancelOrder(order) && (
-                      <div className="w-full text-center text-xs text-gray-500 py-1">
-                        Không có hành động
-                      </div>
                     )}
                   </div>
                 </div>
@@ -297,67 +301,187 @@ export default function OrderManager() {
       {showDetailModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-lg">Chi tiết đơn hàng #{selectedOrder.id}</h3>
-                <button
-                  onClick={handleCloseDetail}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Thông tin đơn hàng */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-2xl font-bold text-gray-900">Chi tiết đơn hàng #{selectedOrder.id}</h3>
+              <button
+                onClick={handleCloseDetail}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Thông tin đơn hàng */}
+              <div className="grid grid-cols-2 gap-6">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2">Thông tin đơn hàng</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <strong>Ngày đặt:</strong> {formatDateTime(selectedOrder.created_at)}
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                    Thông tin đơn hàng
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Mã đơn hàng:</span>
+                      <span className="font-semibold">#{selectedOrder.id}</span>
                     </div>
-                    <div>
-                      <strong>Trạng thái:</strong> 
-                      <span className={`ml-2 px-2 py-1 rounded-full text-xs ${getStatusColor(selectedOrder.status)}`}>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Ngày đặt:</span>
+                      <span className="font-medium">{formatDateTime(selectedOrder.created_at)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Trạng thái:</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedOrder.status)}`}>
                         {getStatusText(selectedOrder.status)}
                       </span>
                     </div>
-                    <div>
-                      <strong>Tổng tiền:</strong> {Number(selectedOrder.total_amount).toLocaleString()} ₫
-                    </div>
-                    <div>
-                      <strong>Thanh toán:</strong> 
-                      <span className={getPaymentStatus(selectedOrder).color + ' ml-2'}>
-                        {getPaymentStatus(selectedOrder).text}
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Thanh toán:</span>
+                      <span className="font-medium">
+                        {selectedOrder.payment_method === 'cod' 
+                          ? 'COD (Tiền mặt)' 
+                          : selectedOrder.payment_method === 'vnpay'
+                          ? 'VNPay'
+                          : 'Chuyển khoản'}
                       </span>
                     </div>
-                    <div>
-                      <strong>Phương thức TT:</strong> {
-                        selectedOrder.payment_method === 'cod' 
-                          ? 'Thanh toán khi nhận hàng (COD)' 
-                          : getBankCode(selectedOrder) 
-                            ? `Thanh toán qua ngân hàng ${getBankCode(selectedOrder)} (VNPay)` 
-                            : 'Thanh toán qua ngân hàng (Bank)'
-                      }
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Trạng thái TT:</span>
+                      <span className={`font-semibold ${getPaymentStatus(selectedOrder).color}`}>
+                        {getPaymentStatus(selectedOrder).text}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Thông tin giao hàng chi tiết */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2">Thông tin giao hàng</h4>
-                  <div className="space-y-1 text-sm">
-                    <p><strong>Người nhận:</strong> {selectedOrder.name}</p>
-                    <p><strong>Số điện thoại:</strong> {selectedOrder.phone}</p>
-                    <p><strong>Địa chỉ:</strong> {selectedOrder.address}</p>
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Thông tin người nhận
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Họ tên:</span>
+                      <p className="font-semibold text-gray-900">{selectedOrder.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Số điện thoại:</span>
+                      <p className="font-medium text-gray-900">{selectedOrder.phone}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Địa chỉ:</span>
+                      <p className="font-medium text-gray-900">{selectedOrder.address}</p>
+                    </div>
+                    {selectedOrder.note && (
+                      <div>
+                        <span className="text-gray-600">Ghi chú:</span>
+                        <p className="font-medium text-gray-900 italic">{selectedOrder.note}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <div className="modal-action mt-6">
+              {/* Danh sách sản phẩm */}
+              <div className="border-t border-gray-200 pt-6">
+                <h4 className="font-semibold text-gray-900 mb-4 flex items-center text-lg">
+                  <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Sản phẩm đã đặt ({selectedOrder.order_details?.length || 0} sản phẩm)
+                </h4>
+                
+                {selectedOrder.order_details && selectedOrder.order_details.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedOrder.order_details.map((detail, index) => (
+                      <div 
+                        key={index} 
+                        onClick={() => navigate(`/product/${detail.product_id}`)}
+                        className="bg-gray-50 rounded-lg p-4 flex items-center gap-4 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer border border-transparent"
+                      >
+                        <div className="flex-shrink-0 w-20 h-20 bg-white rounded border border-gray-200 overflow-hidden">
+                          <img 
+                            src={resolveImage(detail.image)} 
+                            alt={detail.product_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/images/placeholder.png';
+                            }}
+                          />
+                        </div>
+                        <div className="flex-grow">
+                          <h5 className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">{detail.product_name}</h5>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                            <span className="flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                              Size: <span className="font-medium ml-1">{detail.size_name}</span>
+                            </span>
+                            <span className="flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                              </svg>
+                              Số lượng: <span className="font-medium ml-1">{detail.quantity}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Đơn giá</div>
+                          <div className="font-semibold text-blue-600">
+                            {Number(detail.price).toLocaleString()} ₫
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Thành tiền: <span className="font-semibold text-gray-700">
+                              {(Number(detail.price) * detail.quantity).toLocaleString()} ₫
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Không có thông tin sản phẩm
+                  </div>
+                )}
+              </div>
+
+              {/* Tổng tiền */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Tổng tiền đơn hàng</h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Tổng cộng {selectedOrder.order_details?.reduce((sum, item) => sum + item.quantity, 0) || 0} sản phẩm
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {Number(selectedOrder.total_amount).toLocaleString()} ₫
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        (Đã bao gồm giảm giá)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4">
+              <div className="flex gap-3 justify-end">
                 <button
                   onClick={handleCloseDetail}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors"
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
                   Đóng
                 </button>

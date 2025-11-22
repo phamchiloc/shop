@@ -1,16 +1,19 @@
 // src/view/Admin/OrderManager.js
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { getAllOrders, updateOrderStatus, getAllAccounts, deleteOrder } from "../../api";
 
 export default function OrderManager() {
   const [orders, setOrders] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [error, setError] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPayment, setFilterPayment] = useState("all"); // all, bank, cod
   const [searchTerm, setSearchTerm] = useState("");
   const [updateModal, setUpdateModal] = useState({ show: false, order: null, newStatus: "" });
+  const [detailModal, setDetailModal] = useState({ show: false, order: null });
   const [visibleCountBank, setVisibleCountBank] = useState(5);
   const [visibleCountCOD, setVisibleCountCOD] = useState(5);
 
@@ -52,11 +55,9 @@ export default function OrderManager() {
     }
 
     try {
-      // Nếu chuyển từ pending sang received và là COD, tự động đánh dấu đã thanh toán
+      // Tự động đánh dấu đã thanh toán khi đơn hàng COD chuyển sang received
       const updateData = { status: updateModal.newStatus };
-      if (updateModal.order.status === 'pending' && 
-          updateModal.newStatus === 'received' && 
-          updateModal.order.payment_method === 'cod') {
+      if (updateModal.newStatus === 'received' && updateModal.order.payment_method === 'cod') {
         updateData.is_paid = true;
       }
 
@@ -107,6 +108,14 @@ export default function OrderManager() {
 
   const closeUpdateModal = () => {
     setUpdateModal({ show: false, order: null, newStatus: "" });
+  };
+
+  const openDetailModal = (order) => {
+    setDetailModal({ show: true, order: order });
+  };
+
+  const closeDetailModal = () => {
+    setDetailModal({ show: false, order: null });
   };
 
   // Kiểm tra trạng thái thanh toán (nếu đã nhận hàng và COD thì coi như đã thanh toán)
@@ -166,6 +175,8 @@ export default function OrderManager() {
   const getStatusColor = (status) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'confirmed': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'shipping': return 'bg-purple-100 text-purple-800 border-purple-200';
       case 'received': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
@@ -174,7 +185,9 @@ export default function OrderManager() {
   const getStatusText = (status) => {
     switch (status) {
       case 'pending': return 'Chờ xác nhận';
-      case 'received': return 'Đã nhận hàng';
+      case 'confirmed': return 'Đã xác nhận';
+      case 'shipping': return 'Đang giao hàng';
+      case 'received': return 'Đã giao thành công';
       default: return status;
     }
   };
@@ -198,11 +211,22 @@ export default function OrderManager() {
     return order.order_details?.reduce((total, detail) => total + detail.quantity, 0) || 0;
   };
 
+  // Hàm xử lý đường dẫn hình ảnh
+  const resolveImage = (img) => {
+    if (!img) return '/images/placeholder.png';
+    const trimmed = String(img).trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+    if (trimmed.startsWith('/')) return encodeURI(trimmed);
+    return `/images/${encodeURI(trimmed)}`;
+  };
+
   // Thống kê số lượng đơn hàng theo trạng thái
   const getOrderStats = () => {
     const stats = {
       all: orders.length,
       pending: orders.filter(order => order.status === 'pending').length,
+      confirmed: orders.filter(order => order.status === 'confirmed').length,
+      shipping: orders.filter(order => order.status === 'shipping').length,
       received: orders.filter(order => order.status === 'received').length,
       bank: orders.filter(order => order.payment_method === 'bank' || order.payment_method === 'vnpay').length,
       cod: orders.filter(order => order.payment_method === 'cod').length
@@ -238,7 +262,7 @@ export default function OrderManager() {
       </div>
 
       {/* Thống kê nhanh */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
         <button
           onClick={() => {
             if (filterStatus === "all" && filterPayment === "all") {
@@ -287,6 +311,50 @@ export default function OrderManager() {
         
         <button
           onClick={() => {
+            if (filterStatus === "confirmed") {
+              setFilterStatus("all");
+            } else {
+              setFilterStatus("confirmed");
+            }
+          }}
+          className={`p-4 rounded-lg shadow-lg border-2 transition-all duration-300 transform hover:scale-105 ${
+            filterStatus === "confirmed"
+              ? 'bg-gradient-to-r from-blue-500 to-blue-600 border-blue-700 shadow-blue-300 text-white'
+              : 'bg-white border-blue-200 hover:border-blue-400 hover:shadow-blue-200'
+          }`}
+        >
+          <div className={`text-2xl font-bold ${filterStatus === "confirmed" ? 'text-white' : 'text-blue-600'}`}>
+            {orderStats.confirmed}
+          </div>
+          <div className={`text-sm ${filterStatus === "confirmed" ? 'text-blue-100' : 'text-gray-600'}`}>
+            Đã xác nhận
+          </div>
+        </button>
+        
+        <button
+          onClick={() => {
+            if (filterStatus === "shipping") {
+              setFilterStatus("all");
+            } else {
+              setFilterStatus("shipping");
+            }
+          }}
+          className={`p-4 rounded-lg shadow-lg border-2 transition-all duration-300 transform hover:scale-105 ${
+            filterStatus === "shipping"
+              ? 'bg-gradient-to-r from-purple-500 to-purple-600 border-purple-700 shadow-purple-300 text-white'
+              : 'bg-white border-purple-200 hover:border-purple-400 hover:shadow-purple-200'
+          }`}
+        >
+          <div className={`text-2xl font-bold ${filterStatus === "shipping" ? 'text-white' : 'text-purple-600'}`}>
+            {orderStats.shipping}
+          </div>
+          <div className={`text-sm ${filterStatus === "shipping" ? 'text-purple-100' : 'text-gray-600'}`}>
+            Đang giao hàng
+          </div>
+        </button>
+        
+        <button
+          onClick={() => {
             if (filterStatus === "received") {
               // Nếu đã chọn received, bỏ chọn
               setFilterStatus("all");
@@ -304,7 +372,7 @@ export default function OrderManager() {
             {orderStats.received}
           </div>
           <div className={`text-sm ${filterStatus === "received" ? 'text-green-100' : 'text-gray-600'}`}>
-            Đã nhận hàng
+            Đã giao thành công
           </div>
         </button>
         
@@ -423,7 +491,9 @@ export default function OrderManager() {
             >
               <option value="all">Tất cả trạng thái</option>
               <option value="pending">Chờ xác nhận</option>
-              <option value="received">Đã nhận hàng</option>
+              <option value="confirmed">Đã xác nhận</option>
+              <option value="shipping">Đang giao hàng</option>
+              <option value="received">Đã giao thành công</option>
             </select>
           </div>
           <div>
@@ -530,6 +600,12 @@ export default function OrderManager() {
                               {Number(order.total_amount).toLocaleString()} ₫
                             </div>
                             <div className="flex gap-2">
+                              <button
+                                onClick={() => openDetailModal(order)}
+                                className="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors"
+                              >
+                                Chi tiết
+                              </button>
                               <button
                                 onClick={() => openUpdateModal(order)}
                                 className={`text-white px-3 py-1 rounded text-xs transition-colors ${
@@ -644,10 +720,20 @@ export default function OrderManager() {
                             </div>
                             <div className="flex gap-2">
                               <button
+                                onClick={() => openDetailModal(order)}
+                                className="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors"
+                              >
+                                Chi tiết
+                              </button>
+                              <button
                                 onClick={() => openUpdateModal(order)}
                                 className={`text-white px-3 py-1 rounded text-xs transition-colors ${
                                   order.status === 'pending' 
-                                    ? 'bg-yellow-500 hover:bg-yellow-600' 
+                                    ? 'bg-yellow-500 hover:bg-yellow-600'
+                                    : order.status === 'confirmed'
+                                    ? 'bg-blue-500 hover:bg-blue-600'
+                                    : order.status === 'shipping'
+                                    ? 'bg-purple-500 hover:bg-purple-600'
                                     : 'bg-green-500 hover:bg-green-600'
                                 }`}
                               >
@@ -724,7 +810,7 @@ export default function OrderManager() {
                   </p>
                   {updateModal.order.payment_method === 'cod' && updateModal.newStatus === 'received' && (
                     <p className="text-sm text-green-600 font-medium mt-1">
-                      ⓘ Khi chuyển sang "Đã nhận hàng", đơn hàng COD sẽ tự động được đánh dấu là "Đã thanh toán"
+                      ⓘ Khi chuyển sang "Đã giao thành công", đơn hàng COD sẽ tự động được đánh dấu là "Đã thanh toán"
                     </p>
                   )}
                 </div>
@@ -739,7 +825,9 @@ export default function OrderManager() {
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="pending">Chờ xác nhận</option>
-                    <option value="received">Đã nhận hàng</option>
+                    <option value="confirmed">Đã xác nhận</option>
+                    <option value="shipping">Đang giao hàng</option>
+                    <option value="received">Đã giao thành công</option>
                   </select>
                 </div>
 
@@ -759,6 +847,213 @@ export default function OrderManager() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal chi tiết đơn hàng */}
+      {detailModal.show && detailModal.order && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <h3 className="text-2xl font-bold text-gray-900">Chi tiết đơn hàng #{detailModal.order.id}</h3>
+              <button
+                onClick={closeDetailModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Thông tin đơn hàng */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                    </svg>
+                    Thông tin đơn hàng
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Mã đơn hàng:</span>
+                      <span className="font-semibold">#{detailModal.order.id}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Ngày đặt:</span>
+                      <span className="font-medium">{formatDateTime(detailModal.order.created_at)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Trạng thái:</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(detailModal.order.status)}`}>
+                        {getStatusText(detailModal.order.status)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Thanh toán:</span>
+                      <span className="font-medium">
+                        {detailModal.order.payment_method === 'cod' 
+                          ? 'COD (Tiền mặt)' 
+                          : detailModal.order.payment_method === 'vnpay'
+                          ? 'VNPay'
+                          : 'Chuyển khoản'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Trạng thái TT:</span>
+                      <span className={`font-semibold ${getPaymentStatus(detailModal.order).color}`}>
+                        {getPaymentStatus(detailModal.order).text}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Tài khoản:</span>
+                      <span className="font-medium">{getUsername(detailModal.order.account_id)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Thông tin người nhận
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <span className="text-gray-600">Họ tên:</span>
+                      <p className="font-semibold text-gray-900">{detailModal.order.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Số điện thoại:</span>
+                      <p className="font-medium text-gray-900">{detailModal.order.phone}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Địa chỉ:</span>
+                      <p className="font-medium text-gray-900">{detailModal.order.address}</p>
+                    </div>
+                    {detailModal.order.note && (
+                      <div>
+                        <span className="text-gray-600">Ghi chú:</span>
+                        <p className="font-medium text-gray-900 italic">{detailModal.order.note}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Danh sách sản phẩm */}
+              <div className="border-t border-gray-200 pt-6">
+                <h4 className="font-semibold text-gray-900 mb-4 flex items-center text-lg">
+                  <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Sản phẩm đã đặt ({detailModal.order.order_details?.length || 0} sản phẩm)
+                </h4>
+                
+                {detailModal.order.order_details && detailModal.order.order_details.length > 0 ? (
+                  <div className="space-y-3">
+                    {detailModal.order.order_details.map((detail, index) => (
+                      <div 
+                        key={index} 
+                        onClick={() => navigate(`/product/${detail.product_id}`)}
+                        className="bg-gray-50 rounded-lg p-4 flex items-center gap-4 hover:bg-blue-50 hover:border-blue-300 transition-all cursor-pointer border border-transparent"
+                      >
+                        <div className="flex-shrink-0 w-20 h-20 bg-white rounded border border-gray-200 overflow-hidden">
+                          <img 
+                            src={resolveImage(detail.image)} 
+                            alt={detail.product_name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/images/placeholder.png';
+                            }}
+                          />
+                        </div>
+                        <div className="flex-grow">
+                          <h5 className="font-semibold text-gray-900 hover:text-blue-600 transition-colors">{detail.product_name}</h5>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                            <span className="flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                              </svg>
+                              Size: <span className="font-medium ml-1">{detail.size_name}</span>
+                            </span>
+                            <span className="flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                              </svg>
+                              Số lượng: <span className="font-medium ml-1">{detail.quantity}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-gray-600">Đơn giá</div>
+                          <div className="font-semibold text-blue-600">
+                            {Number(detail.price).toLocaleString()} ₫
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Thành tiền: <span className="font-semibold text-gray-700">
+                              {(Number(detail.price) * detail.quantity).toLocaleString()} ₫
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    Không có thông tin sản phẩm
+                  </div>
+                )}
+              </div>
+
+              {/* Tổng tiền */}
+              <div className="border-t border-gray-200 pt-6">
+                <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Tổng tiền đơn hàng</h4>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Tổng cộng {detailModal.order.order_details?.reduce((sum, item) => sum + item.quantity, 0) || 0} sản phẩm
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {Number(detailModal.order.total_amount).toLocaleString()} ₫
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        (Đã bao gồm giảm giá)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4">
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={closeDetailModal}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Đóng
+                </button>
+                <button
+                  onClick={() => {
+                    closeDetailModal();
+                    openUpdateModal(detailModal.order);
+                  }}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Cập nhật trạng thái
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

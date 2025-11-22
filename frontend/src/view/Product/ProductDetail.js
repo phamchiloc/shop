@@ -91,9 +91,12 @@ export default function ProductDetail() {
       setRatings(productRatings);
 
       // Determine if current user can rate: must have a purchase (order_detail) for this product not yet rated
+      // AND the order must have status 'received' (đã giao thành công)
       if (currentUser?.id) {
         const myOrderIds = new Set(
-          ordersData.filter(o => o.account_id === currentUser.id).map(o => o.id)
+          ordersData
+            .filter(o => o.account_id === currentUser.id && o.status === 'received')
+            .map(o => o.id)
         );
         const myDetailsForProduct = orderDetailsData.filter(d => {
           if (!myOrderIds.has(d.order_id)) return false;
@@ -126,7 +129,7 @@ export default function ProductDetail() {
       return;
     }
     if (!eligibleOrderDetailId) {
-      alert("Bạn cần mua sản phẩm này trước khi đánh giá.");
+      alert("Bạn chỉ có thể đánh giá sản phẩm sau khi đơn hàng đã được giao thành công!");
       return;
     }
     if (!userRating.comment.trim()) {

@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { updateOrderPaymentStatus } from "../../api";
+import Session from "../../Session/session";
 
 export default function VNPayReturn() {
   const [searchParams] = useSearchParams();
@@ -9,6 +10,15 @@ export default function VNPayReturn() {
   const [loading, setLoading] = useState(true);
   const [paymentResult, setPaymentResult] = useState(null);
   const [error, setError] = useState("");
+
+  const handleViewOrders = () => {
+    const userRole = Session.getRole();
+    if (userRole === "admin") {
+      navigate("/admin", { state: { activeTab: "orderManager" } });
+    } else {
+      navigate("/user", { state: { activeTab: "orders" } });
+    }
+  };
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -236,12 +246,12 @@ export default function VNPayReturn() {
             ← Về trang chủ
           </Link>
           {isSuccess && (
-            <Link
-              to="/user"
+            <button
+              onClick={handleViewOrders}
               className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-medium"
             >
               Xem đơn hàng của tôi
-            </Link>
+            </button>
           )}
           {!isSuccess && (
             <Link

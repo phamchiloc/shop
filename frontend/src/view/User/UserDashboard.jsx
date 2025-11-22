@@ -1,12 +1,12 @@
 // src/view/User/UserDashboard.js
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Session from "../../Session/session";
 import UserInfo from "./UserInfo";
 import ChangePassword from "./ChangePassword";
 import ManageAddress from "./ManageAddress";
 import Address from "./Address";
 import OrderManager from "./OrderManager";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function UserDashboard() {
   const user = useMemo(() => (Session.isLoggedIn() ? Session.getUser() : null), []);
@@ -14,6 +14,14 @@ export default function UserDashboard() {
   const [menuOpen, setMenuOpen] = useState(true);
   const [dropdownOpen, setDropdownOpen] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Xử lý activeTab từ state khi navigate về
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+    }
+  }, [location.state]);
 
   if (!user)
     return (
