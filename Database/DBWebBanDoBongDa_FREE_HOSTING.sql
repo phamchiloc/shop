@@ -54,7 +54,8 @@ CREATE TABLE `address` (
 
 INSERT INTO `address` VALUES 
 (9,39,'hiep','0977850642','Thành phố Hồ Chí Minh','Thành phố Thủ Đức','Phường Linh Trung','96 Lê Văn Chí'),
-(10,42,'Lê Đức Thịnh','0383190880','Tỉnh Phú Thọ','Huyện Thanh Thuỷ','Xã Đồng Trung','Đạ teh, lâm đồng');
+(10,42,'Lê Đức Thịnh','0383190880','Tỉnh Phú Thọ','Huyện Thanh Thuỷ','Xã Đồng Trung','Đạ teh, lâm đồng')
+(11,43,'Phạm chí lộc','0832090304','tỉnh phú yên','Quận Ba Đình','Phường Phúc Xá','Số 1, Đường ABC');
 
 -- =====================================================
 -- Table 3: ai_conversations
