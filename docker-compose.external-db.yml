@@ -7,8 +7,8 @@ services:
       dockerfile: Dockerfile
     container_name: my_store_backend
     restart: unless-stopped
-    ports:
-      - "3006:3006"
+    expose:
+      - "3006"
     environment:
       DB_HOST: ${DB_HOST}
       DB_USER: ${DB_USER}
